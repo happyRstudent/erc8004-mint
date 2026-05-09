@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERC-8004 AgentIdentity Mint</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg: #0a0a0f;
+            --card: #12121a;
+            --border: #1e1e2e;
+            --accent: #6c5ce7;
+            --accent2: #a29bfe;
+            --text: #e0e0e0;
+            --text2: #888;
+            --success: #00b894;
+            --error: #e17055;
+            --warning: #fdcb6e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 560px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text2);
+            font-size: 14px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text2);
+            margin-bottom: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            color: var(--text);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            resize: vertical;
+            min-height: 120px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+        }
+
+        textarea::placeholder {
+            color: #444;
+        }
+
+        .chain-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chain-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text2);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chain-btn:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+
+        .chain-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-mint {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .btn-mint:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-mint:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .results {
+            margin-top: 16px;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: var(--bg);
+            margin-bottom: 6px;
+            font-size: 12px;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .result-item .addr { color: var(--text2); }
+        .result-item .status { font-weight: 600; }
+        .result-item .status.success { color: var(--success); }
+        .result-item .status.error { color: var(--error); }
+        .result-item .status.pending { color: var(--warning); }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            font-size: 13px;
+            color: var(--text2);
+        }
+
+        .stats span { color: var(--accent2); font-weight: 600; }
+
+        .warning-box {
+            background: rgba(225, 112, 85, 0.1);
+            border: 1px solid rgba(225, 112, 85, 0.3);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 12px;
+            color: var(--error);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .link {
+            color: var(--accent2);
+            text-decoration: none;
+        }
+        .link:hover { text-decoration: underline; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ERC-8004 AgentIdentity</h1>
+            <p>批量铸造 AgentIdentity NFT — 输入私钥即可</p>
+        </div>
+
+        <div class="card">
+            <div class="warning-box">
+                ⚠️ 私钥仅在浏览器本地使用，不会上传到任何服务器。交易直接从你的浏览器发送到区块链节点。
+            </div>
+
+            <div class="input-group">
+                <label>选择网络</label>
+                <div class="chain-selector">
+                    <button class="chain-btn active" data-chain="ethereum" data-rpc="https://ethereum.publicnode.com" data-contract="0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" data-explorer="https://etherscan.io">Ethereum</button>
+                    <button class="chain-btn" data-chain="base" data-rpc="https://base.publicnode.com" data-contract="0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" data-explorer="https://basescan.org">Base</button>
+                    <button class="chain-btn" data-chain="sepolia" data-rpc="https://ethereum-sepolia.publicnode.com" data-contract="0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" data-explorer="https://sepolia.etherscan.io">Sepolia</button>
+                    <button class="chain-btn" data-chain="polygon" data-rpc="https://polygon-bor.publicnode.com" data-contract="0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" data-explorer="https://polygonscan.com">Polygon</button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>私钥（每行一个，支持批量）</label>
+                <textarea id="privateKeys" placeholder="0xabc123...&#10;0xdef456...&#10;&#10;或不含 0x 前缀也可以"></textarea>
+            </div>
+
+            <button class="btn-mint" id="mintBtn" onclick="startMint()">
+                🚀 开始铸造
+            </button>
+        </div>
+
+        <div class="card hidden" id="resultsCard">
+            <div class="stats" id="stats"></div>
+            <div class="results" id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        const REGISTER_SELECTOR = '0x1aa3a008';
+        const BALANCEOF_SELECTOR = '0x70a08231';
+
+        let selectedChain = {
+            name: 'Ethereum',
+            rpc: 'https://ethereum.publicnode.com',
+            contract: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
+            explorer: 'https://etherscan.io'
+        };
+
+        // Chain selector
+        document.querySelectorAll('.chain-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.chain-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedChain = {
+                    name: btn.dataset.chain,
+                    rpc: btn.dataset.rpc,
+                    contract: btn.dataset.contract,
+                    explorer: btn.dataset.explorer
+                };
+            });
+        });
+
+        function parseKeys(text) {
+            return text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(key => key.startsWith('0x') ? key : '0x' + key)
+                .filter(key => /^0x[0-9a-fA-F]{64}$/.test(key));
+        }
+
+        async function startMint() {
+            const btn = document.getElementById('mintBtn');
+            const rawKeys = document.getElementById('privateKeys').value;
+            const keys = parseKeys(rawKeys);
+
+            if (keys.length === 0) {
+                alert('请输入至少一个有效的私钥（64位十六进制）');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '铸造中...';
+
+            const resultsCard = document.getElementById('resultsCard');
+            const resultsDiv = document.getElementById('results');
+            const statsDiv = document.getElementById('stats');
+            resultsCard.classList.remove('hidden');
+            resultsDiv.innerHTML = '';
+            statsDiv.innerHTML = '';
+
+            const provider = new ethers.JsonRpcProvider(selectedChain.rpc);
+            let success = 0, fail = 0, pending = 0;
+
+            for (let i = 0; i < keys.length; i++) {
+                const pk = keys[i];
+                let wallet;
+                try {
+                    wallet = new ethers.Wallet(pk, provider);
+                } catch (e) {
+                    addResult(resultsDiv, `Invalid key #${i+1}`, '❌ 无效私钥', 'error');
+                    fail++;
+                    updateStats(statsDiv, keys.length, success, fail, pending);
+                    continue;
+                }
+
+                const addr = wallet.address;
+                const shortAddr = addr.slice(0, 8) + '...' + addr.slice(-4);
+
+                addResult(resultsDiv, shortAddr, '⏳ 铸造中...', 'pending');
+                const lastItem = resultsDiv.lastElementChild;
+
+                try {
+                    // Check balance first
+                    const balance = await provider.getBalance(addr);
+                    if (balance === 0n) {
+                        lastItem.querySelector('.status').className = 'status error';
+                        lastItem.querySelector('.status').textContent = '❌ 余额不足';
+                        fail++;
+                        updateStats(statsDiv, keys.length, success, fail, pending);
+                        continue;
+                    }
+
+                    // Check if already has NFT
+                    const balData = BALANCEOF_SELECTOR + addr.slice(2).toLowerCase().padStart(64, '0');
+                    const balResult = await provider.call({
+                        to: selectedChain.contract,
+                        data: balData
+                    });
+                    const nftCount = parseInt(balResult, 16);
+                    if (nftCount > 0) {
+                        lastItem.querySelector('.status').className = 'status success';
+                        lastItem.querySelector('.status').textContent = '✅ 已有 NFT';
+                        success++;
+                        updateStats(statsDiv, keys.length, success, fail, pending);
+                        continue;
+                    }
+
+                    // Send register transaction
+                    const feeData = await provider.getFeeData();
+                    const nonce = await provider.getTransactionCount(addr);
+
+                    const tx = await wallet.sendTransaction({
+                        to: selectedChain.contract,
+                        data: REGISTER_SELECTOR,
+                        nonce: nonce,
+                        gasLimit: 150000,
+                        ...((selectedChain.name === 'ethereum' || selectedChain.name === 'base' || selectedChain.name === 'polygon')
+                            ? { maxFeePerGas: (feeData.maxFeePerGas * 12n) / 10n, maxPriorityFeePerGas: (feeData.maxPriorityFeePerGas * 12n) / 10n, type: 2 }
+                            : {})
+                    });
+
+                    lastItem.querySelector('.status').className = 'status pending';
+                    lastItem.querySelector('.status').textContent = `⏳ 等待确认...`;
+
+                    const receipt = await tx.wait(1);
+
+                    if (receipt.status === 1) {
+                        lastItem.querySelector('.status').className = 'status success';
+                        lastItem.querySelector('.status').innerHTML = `✅ <a class="link" href="${selectedChain.explorer}/tx/${tx.hash}" target="_blank">TX</a>`;
+                        success++;
+                    } else {
+                        lastItem.querySelector('.status').className = 'status error';
+                        lastItem.querySelector('.status').textContent = '❌ 交易回滚';
+                        fail++;
+                    }
+                } catch (e) {
+                    const msg = e.message || String(e);
+                    let short = '❌ 失败';
+                    if (msg.includes('insufficient funds')) short = '❌ 余额不足';
+                    else if (msg.includes('nonce')) short = '❌ Nonce错误';
+                    else if (msg.includes('reverted')) short = '❌ 合约回滚';
+                    else if (msg.includes('replacement')) short = '❌ 替换交易冲突';
+                    
+                    lastItem.querySelector('.status').className = 'status error';
+                    lastItem.querySelector('.status').textContent = short;
+                    fail++;
+                }
+
+                updateStats(statsDiv, keys.length, success, fail, pending);
+
+                // Small delay between transactions
+                if (i < keys.length - 1) {
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+            }
+
+            btn.disabled = false;
+            btn.textContent = '🚀 开始铸造';
+        }
+
+        function addResult(container, addr, statusText, statusClass) {
+            const div = document.createElement('div');
+            div.className = 'result-item';
+            div.innerHTML = `<span class="addr">${addr}</span><span class="status ${statusClass}">${statusText}</span>`;
+            container.appendChild(div);
+        }
+
+        function updateStats(container, total, success, fail, pending) {
+            container.innerHTML = `总计 <span>${total}</span> | 成功 <span>${success}</span> | 失败 <span>${fail}</span>`;
+        }
+    </script>
+</body>
+</html>
